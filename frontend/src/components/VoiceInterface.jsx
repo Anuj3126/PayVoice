@@ -130,6 +130,7 @@ const VoiceInterface = ({ onResponse, userId }) => {
       
       const data = await response.json();
       console.log('✅ Groq Whisper transcribed:', data.text);
+      console.log('🌍 Whisper detected language:', data.language);
       
       // Fix common transcription errors for names and numbers
       let correctedText = data.text;
@@ -168,7 +169,19 @@ const VoiceInterface = ({ onResponse, userId }) => {
       }
       
       setTranscript(correctedText);
-      handleVoiceCommand(correctedText.trim());
+      
+      // Use Whisper's detected language, fallback to frontend detection
+      let detectedLanguage = 'en';
+      if (data.language && (data.language === 'hi' || data.language.startsWith('hi'))) {
+        detectedLanguage = 'hi';
+        console.log('✅ Using Hindi from Whisper detection');
+      } else {
+        // Fallback to frontend detection
+        detectedLanguage = detectLanguage(correctedText);
+        console.log('🔍 Using frontend language detection:', detectedLanguage);
+      }
+      
+      handleVoiceCommand(correctedText.trim(), detectedLanguage);
       
     } catch (error) {
       console.error('❌ Transcription error:', error);
@@ -193,19 +206,20 @@ const VoiceInterface = ({ onResponse, userId }) => {
     
     // Check for distinctive Hindi/Hinglish words (not used in English)
     // Exclude ambiguous words like "rupees" which can be used in English too
-    const strongHindiWords = ['ko', 'ka', 'ki', 'ke', 'hai', 'hain', 'bhejo', 'bhej', 'kitna', 'kya', 'mera', 'tera', 'uska', 'karo', 'kaise', 'kyun', 'meri', 'aap', 'aapka', 'sakti', 'sakta', 'kya', 'kyun', 'kaise'];
+    const strongHindiWords = ['ko', 'ka', 'ki', 'ke', 'hai', 'hain', 'bhejo', 'bhej', 'kitna', 'kya', 'mera', 'tera', 'uska', 'karo', 'kaise', 'kyun', 'meri', 'aap', 'aapka', 'sakti', 'sakta', 'kya', 'kyun', 'kaise', 'rupaye', 'rupaye', 'sau', 'pachas', 'bees', 'pachees', 'paanch', 'das'];
     const lowerText = text.toLowerCase();
     
-    // Count how many Hindi words are present
-    const hindiWordCount = strongHindiWords.filter(word => 
-      lowerText.includes(` ${word} `) || 
-      lowerText.startsWith(`${word} `) || 
-      lowerText.endsWith(` ${word}`)
-    ).length;
+    // Count how many Hindi words are present (more flexible matching)
+    const hindiWordCount = strongHindiWords.filter(word => {
+      // Check for word boundaries or as part of words
+      const regex = new RegExp(`\\b${word}\\b`, 'i');
+      return regex.test(lowerText);
+    }).length;
     
     // Need at least 1 strong Hindi word to classify as Hindi
     // This prevents "Send ten rupees to Neeraj" from being detected as Hindi
     if (hindiWordCount >= 1) {
+      console.log(`🔍 Detected ${hindiWordCount} Hindi words, classifying as Hindi`);
       return 'hi'; // Hinglish/Hindi
     }
     
@@ -219,13 +233,13 @@ const VoiceInterface = ({ onResponse, userId }) => {
     }
   };
 
-  const handleVoiceCommand = async (text) => {
+  const handleVoiceCommand = async (text, detectedLang = null) => {
     setCommandHistory(prev => [...prev, { text, type: 'user', timestamp: new Date() }]);
 
     try {
-      // Detect language from text
-      const language = detectLanguage(text);
-      console.log('🌐 Detected language:', language);
+      // Use provided language or detect from text
+      const language = detectedLang || detectLanguage(text);
+      console.log('🌐 Final language for API:', language);
       
       const response = await processVoiceCommand(text, userId, language);
       

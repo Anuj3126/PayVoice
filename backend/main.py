@@ -1549,14 +1549,15 @@ async def transcribe_audio(audio: UploadFile = File(...)):
         
         try:
             # Transcribe using Groq Whisper - Auto-detect Hindi or English
-            # Keep prompt simple and natural
+            # Enhanced prompt with Hindi examples to improve recognition
             with open(temp_audio_path, 'rb') as audio_file:
                 transcription = client.audio.transcriptions.create(
                     model="whisper-large-v3-turbo",
                     file=audio_file,
                     response_format="verbose_json",
-                    # Simple bilingual prompt with common names and patterns
-                    prompt="Niraj ko sau rupaye bhejo. Mera balance kitna hai. Send 100 rupees to Anuj. What is my balance. Names: Niraj, Anuj, Rahul, Priya, Amit."
+                    language=None,  # Auto-detect language
+                    # Enhanced bilingual prompt with Hindi examples
+                    prompt="Hindi examples: Niraj ko sau rupaye bhejo. Mera balance kitna hai. Anuj ko paanch sau rupaye bhejo. English examples: Send 100 rupees to Anuj. What is my balance. Pay 500 to Rahul. Common names: Niraj, Anuj, Rahul, Priya, Amit."
                 )
             
             # Extract text and language
@@ -1609,4 +1610,5 @@ async def startup_event():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Enable auto-reload in development (restarts server on file changes)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
